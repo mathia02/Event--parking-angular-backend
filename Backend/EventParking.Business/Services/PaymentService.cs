@@ -80,7 +80,21 @@ public class PaymentService : IPaymentService
         int customerId,
         PaymentCreateDto dto)
     {
-        int createdPaymentId = 0;
+        // ---------------------------------------------------------
+        // PAYMENT METHOD VALIDATION
+        // ---------------------------------------------------------
+
+        if (!Enum.IsDefined(
+                typeof(PaymentMethod),
+                dto.PaymentMethod) ||
+            dto.PaymentMethod ==
+            PaymentMethod.NotSpecified)
+        {
+            throw new ValidationException(
+                "Please select a valid payment method.");
+        }
+
+        var createdPaymentId = 0;
 
         await _paymentRepository
             .ExecuteInTransactionAsync(
@@ -130,7 +144,8 @@ public class PaymentService : IPaymentService
                             "Payment can only be made for a pending booking.");
                     }
 
-                    var now = DateTime.UtcNow;
+                    var now =
+                        DateTime.UtcNow;
 
                     if (!booking.HoldExpiresAt.HasValue ||
                         booking.HoldExpiresAt.Value <= now)
@@ -200,6 +215,10 @@ public class PaymentService : IPaymentService
                         }
                     }
 
+                    // -------------------------------------------------
+                    // PAYMENT AMOUNT
+                    // -------------------------------------------------
+
                     var seatTotal =
                         activeBookingSeats.Sum(
                             x => x.PriceAtBooking);
@@ -222,25 +241,41 @@ public class PaymentService : IPaymentService
                     var transactionReference =
                         await GenerateTransactionReferenceAsync();
 
+                    // -------------------------------------------------
+                    // CREATE PAYMENT
+                    // -------------------------------------------------
+
                     var payment =
                         new Payment
                         {
                             BookingId =
                                 booking.Id,
+
                             CustomerId =
                                 customerId,
+
                             Amount =
                                 totalAmount,
+
+                            PaymentMethod =
+                                dto.PaymentMethod,
+
                             Status =
                                 PaymentStatus.Completed,
+
                             TransactionReference =
                                 transactionReference,
+
                             CreatedAt =
                                 now
                         };
 
                     await _paymentRepository
                         .AddAsync(payment);
+
+                    // -------------------------------------------------
+                    // CONFIRM BOOKING
+                    // -------------------------------------------------
 
                     booking.Status =
                         BookingStatus.Confirmed;
@@ -250,6 +285,10 @@ public class PaymentService : IPaymentService
 
                     booking.HoldExpiresAt =
                         null;
+
+                    // -------------------------------------------------
+                    // CONFIRM SEATS
+                    // -------------------------------------------------
 
                     foreach (var bookingSeat
                              in activeBookingSeats)
@@ -263,6 +302,10 @@ public class PaymentService : IPaymentService
                                 bookingSeat.Seat);
                         }
                     }
+
+                    // -------------------------------------------------
+                    // CONFIRM PARKING
+                    // -------------------------------------------------
 
                     if (parkingReservation != null &&
                         parkingReservation.IsActive &&
@@ -283,6 +326,10 @@ public class PaymentService : IPaymentService
                         payment.Id;
                 });
 
+        // ---------------------------------------------------------
+        // RELOAD PAYMENT
+        // ---------------------------------------------------------
+
         var createdPayment =
             await _paymentRepository
                 .GetByIdAsync(createdPaymentId);
@@ -292,6 +339,10 @@ public class PaymentService : IPaymentService
             throw new NotFoundException(
                 "The payment was completed but could not be retrieved.");
         }
+
+        // ---------------------------------------------------------
+        // NOTIFICATIONS
+        // ---------------------------------------------------------
 
         if (_notificationService != null)
         {
@@ -307,7 +358,8 @@ public class PaymentService : IPaymentService
             }
         }
 
-        return MapToDto(createdPayment);
+        return MapToDto(
+            createdPayment);
     }
 
     private async Task<string>
@@ -347,23 +399,34 @@ public class PaymentService : IPaymentService
         {
             Id =
                 payment.Id,
+
             BookingId =
                 payment.BookingId,
+
             BookingNumber =
                 payment.Booking?.BookingNumber ??
                 string.Empty,
+
             CustomerId =
                 payment.CustomerId,
+
             CustomerName =
                 payment.Customer?.FullName ??
                 string.Empty,
+
             Amount =
                 payment.Amount,
+
+            PaymentMethod =
+                payment.PaymentMethod,
+
             Status =
                 payment.Status,
+
             TransactionReference =
                 payment.TransactionReference ??
                 string.Empty,
+
             CreatedAt =
                 payment.CreatedAt
         };

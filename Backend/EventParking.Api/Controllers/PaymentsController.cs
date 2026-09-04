@@ -12,8 +12,7 @@ namespace EventParking.Api.Controllers;
 [Authorize]
 public class PaymentsController : ControllerBase
 {
-    private readonly IPaymentService
-        _paymentService;
+    private readonly IPaymentService _paymentService;
 
     public PaymentsController(
         IPaymentService paymentService)
@@ -21,6 +20,10 @@ public class PaymentsController : ControllerBase
         _paymentService =
             paymentService;
     }
+
+    // ---------------------------------------------------------
+    // GET ALL PAYMENTS - ADMIN
+    // ---------------------------------------------------------
 
     [Authorize(Roles = "Administrator")]
     [HttpGet("payments")]
@@ -32,6 +35,10 @@ public class PaymentsController : ControllerBase
 
         return Ok(result);
     }
+
+    // ---------------------------------------------------------
+    // GET MY PAYMENTS - CUSTOMER
+    // ---------------------------------------------------------
 
     [Authorize(Roles = "Customer")]
     [HttpGet("payments/my")]
@@ -60,6 +67,10 @@ public class PaymentsController : ControllerBase
                 });
         }
     }
+
+    // ---------------------------------------------------------
+    // GET PAYMENT BY ID
+    // ---------------------------------------------------------
 
     [HttpGet("payments/{id:int}")]
     public async Task<IActionResult>
@@ -101,6 +112,10 @@ public class PaymentsController : ControllerBase
                 });
         }
     }
+
+    // ---------------------------------------------------------
+    // CREATE PAYMENT
+    // ---------------------------------------------------------
 
     [Authorize(Roles = "Customer")]
     [HttpPost(

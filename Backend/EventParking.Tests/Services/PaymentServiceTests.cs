@@ -47,7 +47,8 @@ public class PaymentServiceTests
     [Fact]
     public async Task GetAllAsync_ShouldReturnPayments()
     {
-        var payment = CreatePayment();
+        var payment =
+            CreatePayment();
 
         _paymentRepositoryMock
             .Setup(x => x.GetAllAsync())
@@ -71,6 +72,10 @@ public class PaymentServiceTests
             result[0].Amount);
 
         Assert.Equal(
+            PaymentMethod.Card,
+            result[0].PaymentMethod);
+
+        Assert.Equal(
             PaymentStatus.Completed,
             result[0].Status);
     }
@@ -82,7 +87,8 @@ public class PaymentServiceTests
     [Fact]
     public async Task GetMyPaymentsAsync_ShouldReturnCustomerPayments()
     {
-        var payment = CreatePayment();
+        var payment =
+            CreatePayment();
 
         _paymentRepositoryMock
             .Setup(x =>
@@ -103,6 +109,10 @@ public class PaymentServiceTests
             3,
             result[0].CustomerId);
 
+        Assert.Equal(
+            PaymentMethod.Card,
+            result[0].PaymentMethod);
+
         _paymentRepositoryMock.Verify(
             x => x.GetByCustomerIdAsync(3),
             Times.Once);
@@ -116,8 +126,10 @@ public class PaymentServiceTests
     public async Task GetByIdAsync_WhenPaymentDoesNotExist_ShouldThrowNotFoundException()
     {
         _paymentRepositoryMock
-            .Setup(x => x.GetByIdAsync(999))
-            .ReturnsAsync((Payment?)null);
+            .Setup(x =>
+                x.GetByIdAsync(999))
+            .ReturnsAsync(
+                (Payment?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(
             () =>
@@ -130,10 +142,12 @@ public class PaymentServiceTests
     [Fact]
     public async Task GetByIdAsync_WhenAnotherCustomerRequestsPayment_ShouldThrowUnauthorizedAccessException()
     {
-        var payment = CreatePayment();
+        var payment =
+            CreatePayment();
 
         _paymentRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(payment);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
@@ -147,17 +161,20 @@ public class PaymentServiceTests
     [Fact]
     public async Task GetByIdAsync_WhenAdministratorRequestsPayment_ShouldReturnPayment()
     {
-        var payment = CreatePayment();
+        var payment =
+            CreatePayment();
 
         _paymentRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(payment);
 
         var result =
-            await _paymentService.GetByIdAsync(
-                1,
-                999,
-                true);
+            await _paymentService
+                .GetByIdAsync(
+                    1,
+                    999,
+                    true);
 
         Assert.Equal(
             1,
@@ -166,6 +183,62 @@ public class PaymentServiceTests
         Assert.Equal(
             3,
             result.CustomerId);
+
+        Assert.Equal(
+            PaymentMethod.Card,
+            result.PaymentMethod);
+    }
+
+    // ---------------------------------------------------------
+    // PAYMENT METHOD VALIDATION
+    // ---------------------------------------------------------
+
+    [Fact]
+    public async Task CreateAsync_WhenPaymentMethodIsNotSpecified_ShouldThrowValidationException()
+    {
+        var dto =
+            new PaymentCreateDto
+            {
+                PaymentMethod =
+                    PaymentMethod.NotSpecified
+            };
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () =>
+                _paymentService.CreateAsync(
+                    1,
+                    3,
+                    dto));
+
+        _paymentRepositoryMock.Verify(
+            x =>
+                x.ExecuteInTransactionAsync(
+                    It.IsAny<Func<Task>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenPaymentMethodIsInvalid_ShouldThrowValidationException()
+    {
+        var dto =
+            new PaymentCreateDto
+            {
+                PaymentMethod =
+                    (PaymentMethod)999
+            };
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () =>
+                _paymentService.CreateAsync(
+                    1,
+                    3,
+                    dto));
+
+        _paymentRepositoryMock.Verify(
+            x =>
+                x.ExecuteInTransactionAsync(
+                    It.IsAny<Func<Task>>()),
+            Times.Never);
     }
 
     // ---------------------------------------------------------
@@ -178,15 +251,17 @@ public class PaymentServiceTests
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(999))
-            .ReturnsAsync((Booking?)null);
+            .Setup(x =>
+                x.GetByIdAsync(999))
+            .ReturnsAsync(
+                (Booking?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(
             () =>
                 _paymentService.CreateAsync(
                     999,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     [Fact]
@@ -195,12 +270,14 @@ public class PaymentServiceTests
         var booking =
             CreatePendingBooking();
 
-        booking.CustomerId = 10;
+        booking.CustomerId =
+            10;
 
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
@@ -208,7 +285,7 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     [Fact]
@@ -223,7 +300,8 @@ public class PaymentServiceTests
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         await Assert.ThrowsAsync<ConflictException>(
@@ -231,7 +309,7 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     [Fact]
@@ -246,7 +324,8 @@ public class PaymentServiceTests
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         await Assert.ThrowsAsync<ConflictException>(
@@ -254,7 +333,7 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     [Fact]
@@ -269,7 +348,8 @@ public class PaymentServiceTests
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         await Assert.ThrowsAsync<ConflictException>(
@@ -277,7 +357,7 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     [Fact]
@@ -287,12 +367,14 @@ public class PaymentServiceTests
             CreatePendingBooking();
 
         booking.HoldExpiresAt =
-            DateTime.UtcNow.AddMinutes(-1);
+            DateTime.UtcNow
+                .AddMinutes(-1);
 
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         await Assert.ThrowsAsync<ConflictException>(
@@ -300,7 +382,7 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     // ---------------------------------------------------------
@@ -316,7 +398,8 @@ public class PaymentServiceTests
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         _paymentRepositoryMock
@@ -329,11 +412,12 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
 
         _paymentRepositoryMock.Verify(
-            x => x.AddAsync(
-                It.IsAny<Payment>()),
+            x =>
+                x.AddAsync(
+                    It.IsAny<Payment>()),
             Times.Never);
     }
 
@@ -358,7 +442,7 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     [Fact]
@@ -390,7 +474,7 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     [Fact]
@@ -428,7 +512,7 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
     }
 
     // ---------------------------------------------------------
@@ -467,7 +551,46 @@ public class PaymentServiceTests
                 _paymentService.CreateAsync(
                     1,
                     3,
-                    new PaymentCreateDto()));
+                    CreateValidPaymentDto()));
+    }
+
+    // ---------------------------------------------------------
+    // SUCCESS - PAYMENT METHODS
+    // ---------------------------------------------------------
+
+    [Theory]
+    [InlineData(PaymentMethod.Card)]
+    [InlineData(PaymentMethod.BankTransfer)]
+    [InlineData(PaymentMethod.MobileWallet)]
+    public async Task CreateAsync_WithValidPaymentMethod_ShouldStoreAndReturnSelectedPaymentMethod(
+        PaymentMethod paymentMethod)
+    {
+        var booking =
+            CreatePendingBooking();
+
+        SetupSuccessfulPayment(
+            booking,
+            paymentId: 10);
+
+        var result =
+            await _paymentService.CreateAsync(
+                1,
+                3,
+                CreateValidPaymentDto(
+                    paymentMethod));
+
+        Assert.Equal(
+            paymentMethod,
+            result.PaymentMethod);
+
+        _paymentRepositoryMock.Verify(
+            x =>
+                x.AddAsync(
+                    It.Is<Payment>(
+                        p =>
+                            p.PaymentMethod ==
+                            paymentMethod)),
+            Times.Once);
     }
 
     // ---------------------------------------------------------
@@ -492,7 +615,8 @@ public class PaymentServiceTests
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         _paymentRepositoryMock
@@ -506,7 +630,8 @@ public class PaymentServiceTests
                     It.IsAny<string>()))
             .ReturnsAsync(false);
 
-        Payment? capturedPayment = null;
+        Payment? capturedPayment =
+            null;
 
         _paymentRepositoryMock
             .Setup(x =>
@@ -516,7 +641,9 @@ public class PaymentServiceTests
                 payment =>
                 {
                     payment.Id = 1;
-                    capturedPayment = payment;
+
+                    capturedPayment =
+                        payment;
                 })
             .Returns(Task.CompletedTask);
 
@@ -548,7 +675,8 @@ public class PaymentServiceTests
             await _paymentService.CreateAsync(
                 1,
                 3,
-                new PaymentCreateDto());
+                CreateValidPaymentDto(
+                    PaymentMethod.Card));
 
         Assert.Equal(
             1,
@@ -557,6 +685,10 @@ public class PaymentServiceTests
         Assert.Equal(
             3000m,
             result.Amount);
+
+        Assert.Equal(
+            PaymentMethod.Card,
+            result.PaymentMethod);
 
         Assert.Equal(
             PaymentStatus.Completed,
@@ -618,7 +750,8 @@ public class PaymentServiceTests
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         _paymentRepositoryMock
@@ -632,7 +765,8 @@ public class PaymentServiceTests
                     It.IsAny<string>()))
             .ReturnsAsync(false);
 
-        Payment? capturedPayment = null;
+        Payment? capturedPayment =
+            null;
 
         _paymentRepositoryMock
             .Setup(x =>
@@ -642,16 +776,20 @@ public class PaymentServiceTests
                 payment =>
                 {
                     payment.Id = 2;
-                    capturedPayment = payment;
+
+                    capturedPayment =
+                        payment;
                 })
             .Returns(Task.CompletedTask);
 
         _paymentRepositoryMock
-            .Setup(x => x.SaveChangesAsync())
+            .Setup(x =>
+                x.SaveChangesAsync())
             .ReturnsAsync(1);
 
         _paymentRepositoryMock
-            .Setup(x => x.GetByIdAsync(2))
+            .Setup(x =>
+                x.GetByIdAsync(2))
             .ReturnsAsync(() =>
             {
                 if (capturedPayment == null)
@@ -672,11 +810,16 @@ public class PaymentServiceTests
             await _paymentService.CreateAsync(
                 1,
                 3,
-                new PaymentCreateDto());
+                CreateValidPaymentDto(
+                    PaymentMethod.MobileWallet));
 
         Assert.Equal(
             2500m,
             result.Amount);
+
+        Assert.Equal(
+            PaymentMethod.MobileWallet,
+            result.PaymentMethod);
 
         Assert.Equal(
             PaymentStatus.Completed,
@@ -691,8 +834,9 @@ public class PaymentServiceTests
             seat.Status);
 
         _parkingRepositoryMock.Verify(
-            x => x.Update(
-                It.IsAny<ParkingSlot>()),
+            x =>
+                x.Update(
+                    It.IsAny<ParkingSlot>()),
             Times.Never);
     }
 
@@ -706,13 +850,80 @@ public class PaymentServiceTests
         SetupTransactionExecution();
 
         _bookingRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(booking);
 
         _paymentRepositoryMock
             .Setup(x =>
                 x.HasPaymentForBookingAsync(1))
             .ReturnsAsync(false);
+    }
+
+    private void SetupSuccessfulPayment(
+        Booking booking,
+        int paymentId)
+    {
+        SetupTransactionExecution();
+
+        _bookingRepositoryMock
+            .Setup(x =>
+                x.GetByIdAsync(1))
+            .ReturnsAsync(booking);
+
+        _paymentRepositoryMock
+            .Setup(x =>
+                x.HasPaymentForBookingAsync(1))
+            .ReturnsAsync(false);
+
+        _paymentRepositoryMock
+            .Setup(x =>
+                x.TransactionReferenceExistsAsync(
+                    It.IsAny<string>()))
+            .ReturnsAsync(false);
+
+        Payment? capturedPayment =
+            null;
+
+        _paymentRepositoryMock
+            .Setup(x =>
+                x.AddAsync(
+                    It.IsAny<Payment>()))
+            .Callback<Payment>(
+                payment =>
+                {
+                    payment.Id =
+                        paymentId;
+
+                    capturedPayment =
+                        payment;
+                })
+            .Returns(Task.CompletedTask);
+
+        _paymentRepositoryMock
+            .Setup(x =>
+                x.SaveChangesAsync())
+            .ReturnsAsync(1);
+
+        _paymentRepositoryMock
+            .Setup(x =>
+                x.GetByIdAsync(
+                    paymentId))
+            .ReturnsAsync(() =>
+            {
+                if (capturedPayment == null)
+                {
+                    return null;
+                }
+
+                capturedPayment.Booking =
+                    booking;
+
+                capturedPayment.Customer =
+                    booking.Customer;
+
+                return capturedPayment;
+            });
     }
 
     private void SetupTransactionExecution()
@@ -726,19 +937,47 @@ public class PaymentServiceTests
                     operation());
     }
 
+    private static PaymentCreateDto
+        CreateValidPaymentDto(
+            PaymentMethod paymentMethod =
+                PaymentMethod.Card)
+    {
+        return new PaymentCreateDto
+        {
+            PaymentMethod =
+                paymentMethod
+        };
+    }
+
     private static Customer CreateCustomer()
     {
         return new Customer
         {
             Id = 3,
-            FullName = "Test Customer",
-            Email = "customer1@test.com",
-            Phone = "0771234567",
-            PasswordHash = "test-hash",
-            Role = "Customer",
-            Status = CustomerStatus.Active,
-            EmailVerified = true,
-            CreatedAt = DateTime.UtcNow
+
+            FullName =
+                "Test Customer",
+
+            Email =
+                "customer1@test.com",
+
+            Phone =
+                "0771234567",
+
+            PasswordHash =
+                "test-hash",
+
+            Role =
+                "Customer",
+
+            Status =
+                CustomerStatus.Active,
+
+            EmailVerified =
+                true,
+
+            CreatedAt =
+                DateTime.UtcNow
         };
     }
 
@@ -747,30 +986,54 @@ public class PaymentServiceTests
         return new Seat
         {
             Id = 3,
+
             EventId = 1,
-            SeatNumber = "A3",
-            RowLabel = "A",
-            ColumnNumber = 3,
-            SeatType = "Regular",
-            PriceOverride = null,
-            Status = SeatStatus.Held
+
+            SeatNumber =
+                "A3",
+
+            RowLabel =
+                "A",
+
+            ColumnNumber =
+                3,
+
+            SeatType =
+                "Regular",
+
+            PriceOverride =
+                null,
+
+            Status =
+                SeatStatus.Held
         };
     }
 
-    private static ParkingSlot CreateParkingSlot()
+    private static ParkingSlot
+        CreateParkingSlot()
     {
         return new ParkingSlot
         {
             Id = 2,
+
             EventId = 1,
-            SlotNumber = "A2",
-            Zone = "Zone A",
-            Fee = 500,
-            Status = ParkingSlotStatus.Held
+
+            SlotNumber =
+                "A2",
+
+            Zone =
+                "Zone A",
+
+            Fee =
+                500,
+
+            Status =
+                ParkingSlotStatus.Held
         };
     }
 
-    private static Booking CreatePendingBooking()
+    private static Booking
+        CreatePendingBooking()
     {
         var customer =
             CreateCustomer();
@@ -789,9 +1052,11 @@ public class PaymentServiceTests
                 BookingNumber =
                     "BKG-PAYMENT-TEST-001",
 
-                CustomerId = 3,
+                CustomerId =
+                    3,
 
-                EventId = 1,
+                EventId =
+                    1,
 
                 Status =
                     BookingStatus.Pending,
@@ -812,13 +1077,17 @@ public class PaymentServiceTests
             {
                 Id = 1,
 
-                BookingId = 1,
+                BookingId =
+                    1,
 
-                SeatId = 3,
+                SeatId =
+                    3,
 
-                PriceAtBooking = 2500,
+                PriceAtBooking =
+                    2500,
 
-                IsActive = true,
+                IsActive =
+                    true,
 
                 ReservedAt =
                     DateTime.UtcNow,
@@ -835,13 +1104,17 @@ public class PaymentServiceTests
             {
                 Id = 1,
 
-                BookingId = 1,
+                BookingId =
+                    1,
 
-                ParkingSlotId = 2,
+                ParkingSlotId =
+                    2,
 
-                ReservedFee = 500,
+                ReservedFee =
+                    500,
 
-                IsActive = true,
+                IsActive =
+                    true,
 
                 ReservedAt =
                     DateTime.UtcNow,
@@ -880,11 +1153,17 @@ public class PaymentServiceTests
         {
             Id = 1,
 
-            BookingId = 1,
+            BookingId =
+                1,
 
-            CustomerId = 3,
+            CustomerId =
+                3,
 
-            Amount = 3000,
+            Amount =
+                3000,
+
+            PaymentMethod =
+                PaymentMethod.Card,
 
             Status =
                 PaymentStatus.Completed,
