@@ -10,7 +10,8 @@ public class EventRepository : IEventRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public EventRepository(ApplicationDbContext context)
+    public EventRepository(
+        ApplicationDbContext context)
     {
         _context = context;
     }
@@ -21,55 +22,69 @@ public class EventRepository : IEventRepository
         int? venueId,
         int? categoryId)
     {
-        var query = _context.Events
-            .AsNoTracking()
-            .Include(e => e.Venue)
-            .Include(e => e.Category)
-            .AsQueryable();
+        var query =
+            _context.Events
+                .AsNoTracking()
+                .Include(e => e.Venue)
+                .Include(e => e.Category)
+                .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(name))
         {
-            var search = name.Trim();
+            var search =
+                name.Trim();
 
-            query = query.Where(e =>
-                e.Name.Contains(search));
+            query =
+                query.Where(e =>
+                    e.Name.Contains(search));
         }
 
         if (date.HasValue)
         {
             var dayStart =
-                date.Value.ToDateTime(TimeOnly.MinValue);
+                date.Value.ToDateTime(
+                    TimeOnly.MinValue);
 
-            var nextDay = dayStart.AddDays(1);
+            var nextDay =
+                dayStart.AddDays(1);
 
-            query = query.Where(e =>
-                e.StartDateTime >= dayStart &&
-                e.StartDateTime < nextDay);
+            query =
+                query.Where(e =>
+                    e.StartDateTime >= dayStart &&
+                    e.StartDateTime < nextDay);
         }
 
         if (venueId.HasValue)
         {
-            query = query.Where(e =>
-                e.VenueId == venueId.Value);
+            query =
+                query.Where(e =>
+                    e.VenueId ==
+                    venueId.Value);
         }
 
         if (categoryId.HasValue)
         {
-            query = query.Where(e =>
-                e.CategoryId == categoryId.Value);
+            query =
+                query.Where(e =>
+                    e.CategoryId ==
+                    categoryId.Value);
         }
 
         return await query
-            .OrderBy(e => e.StartDateTime)
+            .OrderBy(e =>
+                e.StartDateTime)
             .ToListAsync();
     }
 
-    public async Task<Event?> GetByIdAsync(int id)
+    public async Task<Event?>
+        GetByIdAsync(
+            int id)
     {
         return await _context.Events
             .Include(e => e.Venue)
             .Include(e => e.Category)
-            .FirstOrDefaultAsync(e => e.Id == id);
+            .FirstOrDefaultAsync(
+                e => e.Id == id);
     }
 
     public async Task<bool> HasOverlapAsync(
@@ -82,21 +97,29 @@ public class EventRepository : IEventRepository
             .AsNoTracking()
             .AnyAsync(e =>
                 e.VenueId == venueId &&
-                (!excludeEventId.HasValue ||
-                 e.Id != excludeEventId.Value) &&
+                (
+                    !excludeEventId.HasValue ||
+                    e.Id != excludeEventId.Value
+                ) &&
                 e.StartDateTime < endDateTime &&
                 e.EndDateTime > startDateTime);
     }
 
-    public async Task<int> GetBookedSeatCountAsync(
-        int eventId)
+    // ---------------------------------------------------------
+    // ACTIVE / BOOKED SEAT COUNT
+    // ---------------------------------------------------------
+
+    public async Task<int>
+        GetBookedSeatCountAsync(
+            int eventId)
     {
         return await _context.BookingSeats
             .AsNoTracking()
             .CountAsync(bs =>
                 bs.IsActive &&
                 bs.Booking != null &&
-                bs.Booking.EventId == eventId &&
+                bs.Booking.EventId ==
+                    eventId &&
                 (
                     bs.Booking.Status ==
                         BookingStatus.Pending ||
@@ -105,50 +128,103 @@ public class EventRepository : IEventRepository
                 ));
     }
 
-    public async Task<bool> HasAnyBookingsAsync(
-        int eventId)
+    // ---------------------------------------------------------
+    // TOTAL SEAT MAP COUNT
+    // ---------------------------------------------------------
+
+    public async Task<int>
+        GetSeatCountAsync(
+            int eventId)
+    {
+        return await _context.Seats
+            .AsNoTracking()
+            .CountAsync(seat =>
+                seat.EventId ==
+                eventId);
+    }
+
+    // ---------------------------------------------------------
+    // BOOKINGS
+    // ---------------------------------------------------------
+
+    public async Task<bool>
+        HasAnyBookingsAsync(
+            int eventId)
     {
         return await _context.Bookings
             .AsNoTracking()
             .AnyAsync(b =>
-                b.EventId == eventId);
+                b.EventId ==
+                eventId);
     }
 
-    public async Task<bool> HasActiveBookingsAsync(
-        int eventId)
+    public async Task<bool>
+        HasActiveBookingsAsync(
+            int eventId)
     {
         return await _context.Bookings
             .AsNoTracking()
             .AnyAsync(b =>
                 b.EventId == eventId &&
                 (
-                    b.Status == BookingStatus.Pending ||
-                    b.Status == BookingStatus.Confirmed
+                    b.Status ==
+                        BookingStatus.Pending ||
+                    b.Status ==
+                        BookingStatus.Confirmed
                 ));
     }
 
-    public async Task AddAsync(Event eventEntity)
+    // ---------------------------------------------------------
+    // CREATE
+    // ---------------------------------------------------------
+
+    public async Task AddAsync(
+        Event eventEntity)
     {
-        await _context.Events.AddAsync(eventEntity);
+        await _context.Events
+            .AddAsync(eventEntity);
     }
 
-    public void Update(Event eventEntity)
+    // ---------------------------------------------------------
+    // UPDATE
+    // ---------------------------------------------------------
+
+    public void Update(
+        Event eventEntity)
     {
-        _context.Events.Update(eventEntity);
+        _context.Events
+            .Update(eventEntity);
     }
 
-    public void Delete(Event eventEntity)
+    // ---------------------------------------------------------
+    // DELETE
+    // ---------------------------------------------------------
+
+    public void Delete(
+        Event eventEntity)
     {
-        _context.Events.Remove(eventEntity);
+        _context.Events
+            .Remove(eventEntity);
     }
 
-    public async Task<int> SaveChangesAsync()
+    // ---------------------------------------------------------
+    // SAVE
+    // ---------------------------------------------------------
+
+    public async Task<int>
+        SaveChangesAsync()
     {
-        return await _context.SaveChangesAsync();
+        return await _context
+            .SaveChangesAsync();
     }
 
-    public async Task ExecuteInTransactionAsync(
-        Func<Task> operation)
+    // ---------------------------------------------------------
+    // TRANSACTION
+    // ---------------------------------------------------------
+
+    public async Task
+        ExecuteInTransactionAsync(
+            Func<Task> operation)
     {
         await using var transaction =
             await _context.Database
@@ -158,11 +234,14 @@ public class EventRepository : IEventRepository
         {
             await operation();
 
-            await transaction.CommitAsync();
+            await transaction
+                .CommitAsync();
         }
         catch
         {
-            await transaction.RollbackAsync();
+            await transaction
+                .RollbackAsync();
+
             throw;
         }
     }

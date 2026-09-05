@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using EventParking.Business.Exceptions;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 
 namespace EventParking.Api.Middleware;
 
@@ -44,6 +46,10 @@ public class ExceptionHandlingMiddleware
 
         switch (exception)
         {
+            // -----------------------------------------------------
+            // NOT FOUND
+            // -----------------------------------------------------
+
             case NotFoundException:
                 statusCode =
                     HttpStatusCode.NotFound;
@@ -51,6 +57,10 @@ public class ExceptionHandlingMiddleware
                 message =
                     exception.Message;
                 break;
+
+            // -----------------------------------------------------
+            // VALIDATION
+            // -----------------------------------------------------
 
             case ValidationException:
                 statusCode =
@@ -60,6 +70,10 @@ public class ExceptionHandlingMiddleware
                     exception.Message;
                 break;
 
+            // -----------------------------------------------------
+            // BUSINESS CONFLICT
+            // -----------------------------------------------------
+
             case ConflictException:
                 statusCode =
                     HttpStatusCode.Conflict;
@@ -67,6 +81,58 @@ public class ExceptionHandlingMiddleware
                 message =
                     exception.Message;
                 break;
+
+            // -----------------------------------------------------
+            // EF CORE CONCURRENCY CONFLICT
+            // -----------------------------------------------------
+
+            case DbUpdateConcurrencyException:
+                statusCode =
+                    HttpStatusCode.Conflict;
+
+                message =
+                    "The requested resource was modified by another request. " +
+                    "Please refresh and try again.";
+
+                _logger.LogWarning(
+                    exception,
+                    "Database concurrency conflict occurred while processing {Method} {Path}",
+                    context.Request.Method,
+                    context.Request.Path);
+
+                break;
+
+            // -----------------------------------------------------
+            // SQL UNIQUE CONSTRAINT CONFLICT
+            //
+            // SQL Server:
+            // 2601 = Cannot insert duplicate key row
+            // 2627 = Violation of UNIQUE constraint
+            // -----------------------------------------------------
+
+            case DbUpdateException dbUpdateException
+                when IsUniqueConstraintViolation(
+                    dbUpdateException):
+
+                statusCode =
+                    HttpStatusCode.Conflict;
+
+                message =
+                    "The requested item is no longer available " +
+                    "or the same record already exists. " +
+                    "Please refresh and try again.";
+
+                _logger.LogWarning(
+                    exception,
+                    "Database unique constraint conflict occurred while processing {Method} {Path}",
+                    context.Request.Method,
+                    context.Request.Path);
+
+                break;
+
+            // -----------------------------------------------------
+            // AUTHENTICATION
+            // -----------------------------------------------------
 
             case UnauthorizedException:
                 statusCode =
@@ -76,6 +142,10 @@ public class ExceptionHandlingMiddleware
                     exception.Message;
                 break;
 
+            // -----------------------------------------------------
+            // AUTHORIZATION
+            // -----------------------------------------------------
+
             case UnauthorizedAccessException:
                 statusCode =
                     HttpStatusCode.Forbidden;
@@ -84,12 +154,17 @@ public class ExceptionHandlingMiddleware
                     exception.Message;
                 break;
 
+            // -----------------------------------------------------
+            // UNKNOWN ERROR
+            // -----------------------------------------------------
+
             default:
                 _logger.LogError(
                     exception,
                     "Unhandled exception occurred while processing {Method} {Path}",
                     context.Request.Method,
                     context.Request.Path);
+
                 break;
         }
 
@@ -122,5 +197,22 @@ public class ExceptionHandlingMiddleware
 
         await context.Response
             .WriteAsync(json);
+    }
+
+    // -------------------------------------------------------------
+    // CHECK SQL SERVER UNIQUE CONSTRAINT ERRORS
+    // -------------------------------------------------------------
+
+    private static bool IsUniqueConstraintViolation(
+        DbUpdateException exception)
+    {
+        if (exception.InnerException
+            is not SqlException sqlException)
+        {
+            return false;
+        }
+
+        return sqlException.Number
+            is 2601 or 2627;
     }
 }

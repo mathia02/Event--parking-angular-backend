@@ -8,25 +8,50 @@ namespace EventParking.DataAccess.Seed;
 public static class DbSeeder
 {
     public static async Task SeedAsync(
-        ApplicationDbContext context)
+        ApplicationDbContext context,
+        string? adminPassword,
+        string? customerPassword)
     {
-        // ---------------------------------------------------------
-        // APPLY PENDING MIGRATIONS
-        // ---------------------------------------------------------
+        // =========================================================
+        // DEVELOPMENT DATABASE MIGRATIONS
+        // Program.cs calls this seeder only in Development.
+        // =========================================================
 
-        if ((await context.Database
-                .GetPendingMigrationsAsync())
-            .Any())
+        var pendingMigrations =
+            await context.Database
+                .GetPendingMigrationsAsync();
+
+        if (pendingMigrations.Any())
         {
             await context.Database
                 .MigrateAsync();
         }
 
-        // ---------------------------------------------------------
-        // ADMIN
-        // ---------------------------------------------------------
+        // =========================================================
+        // PASSWORD VALIDATION
+        // =========================================================
 
-        var adminEmail =
+        if (string.IsNullOrWhiteSpace(
+                adminPassword))
+        {
+            throw new InvalidOperationException(
+                "Seed:AdminPassword is not configured. " +
+                "Store it using .NET User Secrets.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                customerPassword))
+        {
+            throw new InvalidOperationException(
+                "Seed:CustomerPassword is not configured. " +
+                "Store it using .NET User Secrets.");
+        }
+
+        // =========================================================
+        // ADMIN
+        // =========================================================
+
+        const string adminEmail =
             "admin@test.com";
 
         var admin =
@@ -49,8 +74,9 @@ public static class DbSeeder
                         "0770000001",
 
                     PasswordHash =
-                        BCrypt.Net.BCrypt.HashPassword(
-                            "Admin@123"),
+                        BCrypt.Net.BCrypt
+                            .HashPassword(
+                                adminPassword),
 
                     Role =
                         "Administrator",
@@ -67,22 +93,51 @@ public static class DbSeeder
 
             await context.Customers
                 .AddAsync(admin);
+        }
+        else
+        {
+            // Development seed account:
+            // User Secret password is authoritative.
 
-            await context
-                .SaveChangesAsync();
+            var passwordMatches =
+                !string.IsNullOrWhiteSpace(
+                    admin.PasswordHash) &&
+                BCrypt.Net.BCrypt.Verify(
+                    adminPassword,
+                    admin.PasswordHash);
+
+            if (!passwordMatches)
+            {
+                admin.PasswordHash =
+                    BCrypt.Net.BCrypt
+                        .HashPassword(
+                            adminPassword);
+            }
+
+            admin.Role =
+                "Administrator";
+
+            admin.Status =
+                CustomerStatus.Active;
+
+            admin.EmailVerified =
+                true;
         }
 
-        // ---------------------------------------------------------
-        // DEFAULT CUSTOMER
-        // ---------------------------------------------------------
+        await context.SaveChangesAsync();
 
-        var customerEmail =
+        // =========================================================
+        // DEFAULT CUSTOMER
+        // =========================================================
+
+        const string customerEmail =
             "customer1@test.com";
 
         var customer =
             await context.Customers
                 .FirstOrDefaultAsync(x =>
-                    x.Email == customerEmail);
+                    x.Email ==
+                    customerEmail);
 
         if (customer == null)
         {
@@ -99,8 +154,9 @@ public static class DbSeeder
                         "0770000002",
 
                     PasswordHash =
-                        BCrypt.Net.BCrypt.HashPassword(
-                            "Customer@123"),
+                        BCrypt.Net.BCrypt
+                            .HashPassword(
+                                customerPassword),
 
                     Role =
                         "Customer",
@@ -117,14 +173,39 @@ public static class DbSeeder
 
             await context.Customers
                 .AddAsync(customer);
+        }
+        else
+        {
+            var passwordMatches =
+                !string.IsNullOrWhiteSpace(
+                    customer.PasswordHash) &&
+                BCrypt.Net.BCrypt.Verify(
+                    customerPassword,
+                    customer.PasswordHash);
 
-            await context
-                .SaveChangesAsync();
+            if (!passwordMatches)
+            {
+                customer.PasswordHash =
+                    BCrypt.Net.BCrypt
+                        .HashPassword(
+                            customerPassword);
+            }
+
+            customer.Role =
+                "Customer";
+
+            customer.Status =
+                CustomerStatus.Active;
+
+            customer.EmailVerified =
+                true;
         }
 
-        // ---------------------------------------------------------
+        await context.SaveChangesAsync();
+
+        // =========================================================
         // VENUE
-        // ---------------------------------------------------------
+        // =========================================================
 
         const string venueName =
             "Vavuniya Convention Centre";
@@ -159,9 +240,9 @@ public static class DbSeeder
                 .SaveChangesAsync();
         }
 
-        // ---------------------------------------------------------
+        // =========================================================
         // CATEGORY
-        // ---------------------------------------------------------
+        // =========================================================
 
         const string categoryName =
             "Technology";
@@ -169,7 +250,8 @@ public static class DbSeeder
         var category =
             await context.EventCategories
                 .FirstOrDefaultAsync(x =>
-                    x.Name == categoryName);
+                    x.Name ==
+                    categoryName);
 
         if (category == null)
         {
@@ -193,20 +275,33 @@ public static class DbSeeder
                 .SaveChangesAsync();
         }
 
-        // ---------------------------------------------------------
-        // EVENT
-        // ---------------------------------------------------------
+        // =========================================================
+        // DEMO EVENT
+        // Fresh databases always receive a future event.
+        // No hardcoded calendar date.
+        // =========================================================
 
         const string eventName =
-            "Tech Conference 2026";
+            "Tech Conference Demo";
 
         var eventEntity =
             await context.Events
                 .FirstOrDefaultAsync(x =>
-                    x.Name == eventName);
+                    x.Name ==
+                    eventName);
 
         if (eventEntity == null)
         {
+            var demoStart =
+                DateTime.UtcNow
+                    .Date
+                    .AddDays(30)
+                    .AddHours(10);
+
+            var demoEnd =
+                demoStart
+                    .AddHours(2);
+
             eventEntity =
                 new Event
                 {
@@ -214,7 +309,7 @@ public static class DbSeeder
                         eventName,
 
                     Description =
-                        "Annual technology conference.",
+                        "Demo technology conference for development and testing.",
 
                     VenueId =
                         venue.Id,
@@ -223,22 +318,10 @@ public static class DbSeeder
                         category.Id,
 
                     StartDateTime =
-                        new DateTime(
-                            2026,
-                            9,
-                            10,
-                            10,
-                            0,
-                            0),
+                        demoStart,
 
                     EndDateTime =
-                        new DateTime(
-                            2026,
-                            9,
-                            10,
-                            12,
-                            0,
-                            0),
+                        demoEnd,
 
                     TicketPrice =
                         2500m,
@@ -260,10 +343,10 @@ public static class DbSeeder
                 .SaveChangesAsync();
         }
 
-        // ---------------------------------------------------------
+        // =========================================================
         // SEATS
         // 15 ROWS x 20 SEATS = 300
-        // ---------------------------------------------------------
+        // =========================================================
 
         var existingSeatCount =
             await context.Seats
@@ -276,11 +359,8 @@ public static class DbSeeder
             var seats =
                 new List<Seat>();
 
-            const int rows =
-                15;
-
-            const int columns =
-                20;
+            const int rows = 15;
+            const int columns = 20;
 
             for (var row = 0;
                  row < rows;
@@ -326,8 +406,7 @@ public static class DbSeeder
                                     : null,
 
                             Status =
-                                SeatStatus
-                                    .Available
+                                SeatStatus.Available
                         });
                 }
             }
@@ -339,9 +418,9 @@ public static class DbSeeder
                 .SaveChangesAsync();
         }
 
-        // ---------------------------------------------------------
+        // =========================================================
         // PARKING SLOTS
-        // ---------------------------------------------------------
+        // =========================================================
 
         var existingParkingCount =
             await context.ParkingSlots

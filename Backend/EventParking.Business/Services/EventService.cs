@@ -1,7 +1,6 @@
 using EventParking.Business.Exceptions;
 using EventParking.Business.Interfaces;
 using EventParking.DataAccess.Interfaces;
-using EventParking.DataAccess.Repositories;
 using EventParking.Models.DTOs.Event;
 using EventParking.Models.Entities;
 
@@ -41,7 +40,8 @@ public class EventService : IEventService
             .ToList();
     }
 
-    public async Task<EventDto> GetByIdAsync(int id)
+    public async Task<EventDto> GetByIdAsync(
+        int id)
     {
         var eventEntity =
             await _eventRepository.GetByIdAsync(id);
@@ -54,6 +54,10 @@ public class EventService : IEventService
 
         return MapToDto(eventEntity);
     }
+
+    // =========================================================
+    // CREATE EVENT
+    // =========================================================
 
     public async Task<EventDto> CreateAsync(
         EventCreateDto dto)
@@ -92,7 +96,8 @@ public class EventService : IEventService
                             $"Category with ID {dto.CategoryId} was not found.");
                     }
 
-                    if (dto.Capacity > venue.Capacity)
+                    if (dto.Capacity >
+                        venue.Capacity)
                     {
                         throw new ValidationException(
                             $"Event capacity cannot exceed venue capacity of {venue.Capacity}.");
@@ -111,40 +116,48 @@ public class EventService : IEventService
                             "The selected venue already has an overlapping event during this time period.");
                     }
 
-                    createdEvent = new Event
-                    {
-                        Name = dto.Name.Trim(),
+                    createdEvent =
+                        new Event
+                        {
+                            Name =
+                                dto.Name.Trim(),
 
-                        Description =
-                            string.IsNullOrWhiteSpace(
-                                dto.Description)
-                                ? null
-                                : dto.Description.Trim(),
+                            Description =
+                                string.IsNullOrWhiteSpace(
+                                    dto.Description)
+                                    ? null
+                                    : dto.Description.Trim(),
 
-                        VenueId = dto.VenueId,
-                        CategoryId = dto.CategoryId,
+                            VenueId =
+                                dto.VenueId,
 
-                        StartDateTime =
-                            dto.StartDateTime,
+                            CategoryId =
+                                dto.CategoryId,
 
-                        EndDateTime =
-                            dto.EndDateTime,
+                            StartDateTime =
+                                dto.StartDateTime,
 
-                        TicketPrice =
-                            dto.TicketPrice,
+                            EndDateTime =
+                                dto.EndDateTime,
 
-                        ParkingFee =
-                            dto.ParkingFee,
+                            TicketPrice =
+                                dto.TicketPrice,
 
-                        Capacity =
-                            dto.Capacity,
+                            ParkingFee =
+                                dto.ParkingFee,
 
-                        CreatedAt =
-                            DateTime.UtcNow,
+                            Capacity =
+                                dto.Capacity,
 
-                        Venue = venue,
-                        Category = category
-                    };
+                            CreatedAt =
+                                DateTime.UtcNow,
+
+                            Venue =
+                                venue,
+
+                            Category =
+                                category
+                        };
 
                     await _eventRepository
                         .AddAsync(createdEvent);
@@ -155,6 +168,10 @@ public class EventService : IEventService
 
         return MapToDto(createdEvent!);
     }
+
+    // =========================================================
+    // UPDATE EVENT
+    // =========================================================
 
     public async Task<EventDto> UpdateAsync(
         int id,
@@ -204,17 +221,36 @@ public class EventService : IEventService
                             $"Category with ID {dto.CategoryId} was not found.");
                     }
 
-                    if (dto.Capacity > venue.Capacity)
+                    if (dto.Capacity >
+                        venue.Capacity)
                     {
                         throw new ValidationException(
                             $"Event capacity cannot exceed venue capacity of {venue.Capacity}.");
+                    }
+
+                    // =================================================
+                    // STEP 07
+                    // EVENT CAPACITY / SEAT MAP CONSISTENCY
+                    // =================================================
+
+                    var existingSeatCount =
+                        await _eventRepository
+                            .GetSeatCountAsync(id);
+
+                    if (existingSeatCount > 0 &&
+                        dto.Capacity != existingSeatCount)
+                    {
+                        throw new ConflictException(
+                            $"Event capacity cannot be changed because a seat map with {existingSeatCount} seats already exists. " +
+                            $"The capacity must remain {existingSeatCount} unless the seat map is removed and regenerated.");
                     }
 
                     var bookedSeatCount =
                         await _eventRepository
                             .GetBookedSeatCountAsync(id);
 
-                    if (dto.Capacity < bookedSeatCount)
+                    if (dto.Capacity <
+                        bookedSeatCount)
                     {
                         throw new ValidationException(
                             $"Event capacity cannot be reduced below the currently booked seat count of {bookedSeatCount}.");
@@ -279,21 +315,31 @@ public class EventService : IEventService
                     eventEntity.UpdatedAt =
                         DateTime.UtcNow;
 
-                    eventEntity.Venue = venue;
-                    eventEntity.Category = category;
+                    eventEntity.Venue =
+                        venue;
 
-                    _eventRepository.Update(eventEntity);
+                    eventEntity.Category =
+                        category;
+
+                    _eventRepository.Update(
+                        eventEntity);
 
                     await _eventRepository
                         .SaveChangesAsync();
 
-                    updatedEvent = eventEntity;
+                    updatedEvent =
+                        eventEntity;
                 });
 
         return MapToDto(updatedEvent!);
     }
 
-    public async Task DeleteAsync(int id)
+    // =========================================================
+    // DELETE EVENT
+    // =========================================================
+
+    public async Task DeleteAsync(
+        int id)
     {
         await _eventRepository
             .ExecuteInTransactionAsync(
@@ -327,6 +373,10 @@ public class EventService : IEventService
                 });
     }
 
+    // =========================================================
+    // EVENT VALIDATION
+    // =========================================================
+
     private static void ValidateEventData(
         string name,
         DateTime startDateTime,
@@ -339,6 +389,17 @@ public class EventService : IEventService
         {
             throw new ValidationException(
                 "Event name is required.");
+        }
+
+        // =====================================================
+        // STEP 08
+        // PAST EVENT CREATE / UPDATE PROTECTION
+        // =====================================================
+
+        if (startDateTime <= DateTime.UtcNow)
+        {
+            throw new ValidationException(
+                "Event start date/time must be in the future.");
         }
 
         if (endDateTime <= startDateTime)
@@ -366,14 +427,20 @@ public class EventService : IEventService
         }
     }
 
+    // =========================================================
+    // MAP DTO
+    // =========================================================
+
     private static EventDto MapToDto(
         Event eventEntity)
     {
         return new EventDto
         {
-            Id = eventEntity.Id,
+            Id =
+                eventEntity.Id,
 
-            Name = eventEntity.Name,
+            Name =
+                eventEntity.Name,
 
             Description =
                 eventEntity.Description,

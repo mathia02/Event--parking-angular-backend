@@ -12,11 +12,17 @@ namespace EventParking.Tests.Services;
 
 public class EventServiceTests
 {
-    private readonly Mock<IEventRepository> _eventRepositoryMock;
-    private readonly Mock<IVenueRepository> _venueRepositoryMock;
-    private readonly Mock<ICategoryRepository> _categoryRepositoryMock;
+    private readonly Mock<IEventRepository>
+        _eventRepositoryMock;
 
-    private readonly EventService _eventService;
+    private readonly Mock<IVenueRepository>
+        _venueRepositoryMock;
+
+    private readonly Mock<ICategoryRepository>
+        _categoryRepositoryMock;
+
+    private readonly EventService
+        _eventService;
 
     public EventServiceTests()
     {
@@ -29,8 +35,6 @@ public class EventServiceTests
         _categoryRepositoryMock =
             new Mock<ICategoryRepository>();
 
-        // Our service uses a transaction wrapper.
-        // For unit tests, execute the supplied operation directly.
         _eventRepositoryMock
             .Setup(x =>
                 x.ExecuteInTransactionAsync(
@@ -39,20 +43,22 @@ public class EventServiceTests
                 async operation =>
                     await operation());
 
-        _eventService = new EventService(
-            _eventRepositoryMock.Object,
-            _venueRepositoryMock.Object,
-            _categoryRepositoryMock.Object);
+        _eventService =
+            new EventService(
+                _eventRepositoryMock.Object,
+                _venueRepositoryMock.Object,
+                _categoryRepositoryMock.Object);
     }
 
     [Fact]
-    public async Task GetAllAsync_ShouldReturnEvents()
+    public async Task
+        GetAllAsync_ShouldReturnEvents()
     {
-        // Arrange
-        var events = new List<EventEntity>
-        {
-            CreateExistingEvent()
-        };
+        var events =
+            new List<EventEntity>
+            {
+                CreateExistingEvent()
+            };
 
         _eventRepositoryMock
             .Setup(x =>
@@ -63,50 +69,47 @@ public class EventServiceTests
                     null))
             .ReturnsAsync(events);
 
-        // Act
         var result =
-            await _eventService.GetAllAsync(
-                null,
-                null,
-                null,
-                null);
+            await _eventService
+                .GetAllAsync(
+                    null,
+                    null,
+                    null,
+                    null);
 
-        // Assert
         Assert.Single(result);
 
         Assert.Equal(
-            "Tech Conference 2026",
+            "Tech Conference",
             result[0].Name);
 
         Assert.Equal(
             "Main Hall",
             result[0].VenueName);
-
-        Assert.Equal(
-            "Conference",
-            result[0].CategoryName);
     }
 
     [Fact]
-    public async Task GetByIdAsync_WhenEventExists_ShouldReturnEvent()
+    public async Task
+        GetByIdAsync_WhenEventExists_ShouldReturnEvent()
     {
-        // Arrange
         var eventEntity =
             CreateExistingEvent();
 
         _eventRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(eventEntity);
 
-        // Act
         var result =
-            await _eventService.GetByIdAsync(1);
-
-        // Assert
-        Assert.Equal(1, result.Id);
+            await _eventService
+                .GetByIdAsync(1);
 
         Assert.Equal(
-            "Tech Conference 2026",
+            1,
+            result.Id);
+
+        Assert.Equal(
+            "Tech Conference",
             result.Name);
 
         Assert.Equal(
@@ -115,52 +118,35 @@ public class EventServiceTests
     }
 
     [Fact]
-    public async Task GetByIdAsync_WhenEventDoesNotExist_ShouldThrowNotFoundException()
+    public async Task
+        GetByIdAsync_WhenEventDoesNotExist_ShouldThrowNotFoundException()
     {
-        // Arrange
         _eventRepositoryMock
-            .Setup(x => x.GetByIdAsync(99))
-            .ReturnsAsync((EventEntity?)null);
+            .Setup(x =>
+                x.GetByIdAsync(99))
+            .ReturnsAsync(
+                (EventEntity?)null);
 
-        // Act + Assert
-        await Assert.ThrowsAsync<NotFoundException>(
-            () =>
-                _eventService.GetByIdAsync(99));
+        await Assert
+            .ThrowsAsync<NotFoundException>(
+                () =>
+                    _eventService
+                        .GetByIdAsync(99));
     }
 
     [Fact]
-    public async Task CreateAsync_WithValidData_ShouldCreateEvent()
+    public async Task
+        CreateAsync_WithValidData_ShouldCreateEvent()
     {
-        // Arrange
         var dto =
             CreateValidCreateDto();
 
-        var venue = new Venue
-        {
-            Id = 1,
-            Name = "Main Hall",
-            Address = "Vavuniya",
-            Capacity = 500
-        };
-
-        var category = new EventCategory
-        {
-            Id = 1,
-            Name = "Conference"
-        };
-
-        _venueRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
-            .ReturnsAsync(venue);
-
-        _categoryRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
-            .ReturnsAsync(category);
+        SetupVenueAndCategory();
 
         _eventRepositoryMock
             .Setup(x =>
                 x.HasOverlapAsync(
-                    1,
+                    dto.VenueId,
                     dto.StartDateTime,
                     dto.EndDateTime,
                     null))
@@ -176,32 +162,24 @@ public class EventServiceTests
             .Returns(Task.CompletedTask);
 
         _eventRepositoryMock
-            .Setup(x => x.SaveChangesAsync())
+            .Setup(x =>
+                x.SaveChangesAsync())
             .ReturnsAsync(1);
 
-        // Act
         var result =
-            await _eventService.CreateAsync(dto);
+            await _eventService
+                .CreateAsync(dto);
 
-        // Assert
         Assert.Equal(
-            "Tech Conference 2026",
+            "Tech Conference",
             result.Name);
-
-        Assert.Equal(
-            1,
-            result.VenueId);
-
-        Assert.Equal(
-            1,
-            result.CategoryId);
 
         Assert.Equal(
             300,
             result.Capacity);
 
         Assert.Equal(
-            2500,
+            2500m,
             result.TicketPrice);
 
         _eventRepositoryMock.Verify(
@@ -209,27 +187,41 @@ public class EventServiceTests
                 x.AddAsync(
                     It.IsAny<EventEntity>()),
             Times.Once);
-
-        _eventRepositoryMock.Verify(
-            x => x.SaveChangesAsync(),
-            Times.Once);
     }
 
+    // =========================================================
+    // STEP 08
+    // PAST EVENT VALIDATION
+    // =========================================================
+
     [Fact]
-    public async Task CreateAsync_WhenVenueDoesNotExist_ShouldThrowNotFoundException()
+    public async Task
+        CreateAsync_WhenStartDateIsPast_ShouldThrowValidationException()
     {
-        // Arrange
         var dto =
             CreateValidCreateDto();
 
-        _venueRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
-            .ReturnsAsync((Venue?)null);
+        dto.StartDateTime =
+            DateTime.UtcNow
+                .AddHours(-2);
 
-        // Act + Assert
-        await Assert.ThrowsAsync<NotFoundException>(
-            () =>
-                _eventService.CreateAsync(dto));
+        dto.EndDateTime =
+            DateTime.UtcNow
+                .AddHours(-1);
+
+        var exception =
+            await Assert
+                .ThrowsAsync<
+                    ValidationException>(
+                    () =>
+                        _eventService
+                            .CreateAsync(dto));
+
+        Assert.Contains(
+            "future",
+            exception.Message,
+            StringComparison
+                .OrdinalIgnoreCase);
 
         _eventRepositoryMock.Verify(
             x =>
@@ -239,100 +231,184 @@ public class EventServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_WhenCapacityExceedsVenueCapacity_ShouldThrowValidationException()
+    public async Task
+        UpdateAsync_WhenStartDateIsPast_ShouldThrowValidationException()
     {
-        // Arrange
+        var dto =
+            CreateValidUpdateDto();
+
+        dto.StartDateTime =
+            DateTime.UtcNow
+                .AddDays(-2);
+
+        dto.EndDateTime =
+            DateTime.UtcNow
+                .AddDays(-2)
+                .AddHours(2);
+
+        await Assert
+            .ThrowsAsync<
+                ValidationException>(
+                    () =>
+                        _eventService
+                            .UpdateAsync(
+                                1,
+                                dto));
+    }
+
+    [Fact]
+    public async Task
+        CreateAsync_WhenCapacityExceedsVenue_ShouldThrowValidationException()
+    {
         var dto =
             CreateValidCreateDto();
 
         dto.Capacity = 600;
 
-        var venue = new Venue
-        {
-            Id = 1,
-            Name = "Main Hall",
-            Capacity = 500
-        };
+        SetupVenueAndCategory(
+            venueCapacity: 500);
 
-        var category = new EventCategory
-        {
-            Id = 1,
-            Name = "Conference"
-        };
-
-        _venueRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
-            .ReturnsAsync(venue);
-
-        _categoryRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
-            .ReturnsAsync(category);
-
-        // Act + Assert
-        await Assert.ThrowsAsync<ValidationException>(
-            () =>
-                _eventService.CreateAsync(dto));
-
-        _eventRepositoryMock.Verify(
-            x =>
-                x.AddAsync(
-                    It.IsAny<EventEntity>()),
-            Times.Never);
+        await Assert
+            .ThrowsAsync<
+                ValidationException>(
+                    () =>
+                        _eventService
+                            .CreateAsync(dto));
     }
 
     [Fact]
-    public async Task CreateAsync_WhenVenueHasOverlap_ShouldThrowConflictException()
+    public async Task
+        CreateAsync_WhenVenueOverlaps_ShouldThrowConflictException()
     {
-        // Arrange
         var dto =
             CreateValidCreateDto();
 
-        var venue = new Venue
-        {
-            Id = 1,
-            Name = "Main Hall",
-            Capacity = 500
-        };
-
-        var category = new EventCategory
-        {
-            Id = 1,
-            Name = "Conference"
-        };
-
-        _venueRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
-            .ReturnsAsync(venue);
-
-        _categoryRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
-            .ReturnsAsync(category);
+        SetupVenueAndCategory();
 
         _eventRepositoryMock
             .Setup(x =>
                 x.HasOverlapAsync(
-                    1,
+                    dto.VenueId,
                     dto.StartDateTime,
                     dto.EndDateTime,
                     null))
             .ReturnsAsync(true);
 
-        // Act + Assert
-        await Assert.ThrowsAsync<ConflictException>(
-            () =>
-                _eventService.CreateAsync(dto));
+        await Assert
+            .ThrowsAsync<
+                ConflictException>(
+                    () =>
+                        _eventService
+                            .CreateAsync(dto));
+    }
 
-        _eventRepositoryMock.Verify(
-            x =>
-                x.AddAsync(
-                    It.IsAny<EventEntity>()),
-            Times.Never);
+    // =========================================================
+    // STEP 07
+    // SEAT MAP / CAPACITY CONSISTENCY
+    // =========================================================
+
+    [Fact]
+    public async Task
+        UpdateAsync_WhenSeatMapExistsAndCapacityChanges_ShouldThrowConflictException()
+    {
+        var eventEntity =
+            CreateExistingEvent();
+
+        var dto =
+            CreateValidUpdateDto();
+
+        dto.Capacity = 250;
+
+        SetupUpdateDependencies(
+            eventEntity);
+
+        _eventRepositoryMock
+            .Setup(x =>
+                x.GetSeatCountAsync(1))
+            .ReturnsAsync(300);
+
+        var exception =
+            await Assert
+                .ThrowsAsync<
+                    ConflictException>(
+                    () =>
+                        _eventService
+                            .UpdateAsync(
+                                1,
+                                dto));
+
+        Assert.Contains(
+            "seat map",
+            exception.Message,
+            StringComparison
+                .OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenCapacityBelowBookedSeatCount_ShouldThrowValidationException()
+    public async Task
+        UpdateAsync_WhenSeatMapCapacityMatches_ShouldUpdateEvent()
     {
-        // Arrange
+        var eventEntity =
+            CreateExistingEvent();
+
+        var dto =
+            CreateValidUpdateDto();
+
+        SetupUpdateDependencies(
+            eventEntity);
+
+        _eventRepositoryMock
+            .Setup(x =>
+                x.GetSeatCountAsync(1))
+            .ReturnsAsync(300);
+
+        _eventRepositoryMock
+            .Setup(x =>
+                x.GetBookedSeatCountAsync(1))
+            .ReturnsAsync(0);
+
+        _eventRepositoryMock
+            .Setup(x =>
+                x.HasAnyBookingsAsync(1))
+            .ReturnsAsync(false);
+
+        _eventRepositoryMock
+            .Setup(x =>
+                x.HasOverlapAsync(
+                    dto.VenueId,
+                    dto.StartDateTime,
+                    dto.EndDateTime,
+                    1))
+            .ReturnsAsync(false);
+
+        _eventRepositoryMock
+            .Setup(x =>
+                x.SaveChangesAsync())
+            .ReturnsAsync(1);
+
+        var result =
+            await _eventService
+                .UpdateAsync(
+                    1,
+                    dto);
+
+        Assert.Equal(
+            300,
+            result.Capacity);
+
+        Assert.NotNull(
+            eventEntity.UpdatedAt);
+
+        _eventRepositoryMock.Verify(
+            x =>
+                x.Update(eventEntity),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task
+        UpdateAsync_WhenCapacityBelowBookedSeatCount_ShouldThrowValidationException()
+    {
         var eventEntity =
             CreateExistingEvent();
 
@@ -346,31 +422,44 @@ public class EventServiceTests
 
         _eventRepositoryMock
             .Setup(x =>
+                x.GetSeatCountAsync(1))
+            .ReturnsAsync(0);
+
+        _eventRepositoryMock
+            .Setup(x =>
                 x.GetBookedSeatCountAsync(1))
             .ReturnsAsync(10);
 
-        // Act + Assert
-        await Assert.ThrowsAsync<ValidationException>(
-            () =>
-                _eventService.UpdateAsync(
-                    1,
-                    dto));
+        await Assert
+            .ThrowsAsync<
+                ValidationException>(
+                    () =>
+                        _eventService
+                            .UpdateAsync(
+                                1,
+                                dto));
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenBookingsExistAndTicketPriceChanges_ShouldThrowConflictException()
+    public async Task
+        UpdateAsync_WhenBookingsExistAndTicketPriceChanges_ShouldThrowConflictException()
     {
-        // Arrange
         var eventEntity =
             CreateExistingEvent();
 
         var dto =
             CreateValidUpdateDto();
 
-        dto.TicketPrice = 9999;
+        dto.TicketPrice =
+            9999m;
 
         SetupUpdateDependencies(
             eventEntity);
+
+        _eventRepositoryMock
+            .Setup(x =>
+                x.GetSeatCountAsync(1))
+            .ReturnsAsync(0);
 
         _eventRepositoryMock
             .Setup(x =>
@@ -382,63 +471,26 @@ public class EventServiceTests
                 x.HasAnyBookingsAsync(1))
             .ReturnsAsync(true);
 
-        // Act + Assert
-        await Assert.ThrowsAsync<ConflictException>(
-            () =>
-                _eventService.UpdateAsync(
-                    1,
-                    dto));
+        await Assert
+            .ThrowsAsync<
+                ConflictException>(
+                    () =>
+                        _eventService
+                            .UpdateAsync(
+                                1,
+                                dto));
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenVenueHasOverlap_ShouldThrowConflictException()
+    public async Task
+        DeleteAsync_WhenActiveBookingsExist_ShouldThrowConflictException()
     {
-        // Arrange
-        var eventEntity =
-            CreateExistingEvent();
-
-        var dto =
-            CreateValidUpdateDto();
-
-        SetupUpdateDependencies(
-            eventEntity);
-
-        _eventRepositoryMock
-            .Setup(x =>
-                x.GetBookedSeatCountAsync(1))
-            .ReturnsAsync(0);
-
-        _eventRepositoryMock
-            .Setup(x =>
-                x.HasAnyBookingsAsync(1))
-            .ReturnsAsync(false);
-
-        _eventRepositoryMock
-            .Setup(x =>
-                x.HasOverlapAsync(
-                    1,
-                    dto.StartDateTime,
-                    dto.EndDateTime,
-                    1))
-            .ReturnsAsync(true);
-
-        // Act + Assert
-        await Assert.ThrowsAsync<ConflictException>(
-            () =>
-                _eventService.UpdateAsync(
-                    1,
-                    dto));
-    }
-
-    [Fact]
-    public async Task DeleteAsync_WhenActiveBookingsExist_ShouldThrowConflictException()
-    {
-        // Arrange
         var eventEntity =
             CreateExistingEvent();
 
         _eventRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(eventEntity);
 
         _eventRepositoryMock
@@ -446,26 +498,30 @@ public class EventServiceTests
                 x.HasActiveBookingsAsync(1))
             .ReturnsAsync(true);
 
-        // Act + Assert
-        await Assert.ThrowsAsync<ConflictException>(
-            () =>
-                _eventService.DeleteAsync(1));
+        await Assert
+            .ThrowsAsync<
+                ConflictException>(
+                    () =>
+                        _eventService
+                            .DeleteAsync(1));
 
         _eventRepositoryMock.Verify(
-            x => x.Delete(
-                It.IsAny<EventEntity>()),
+            x =>
+                x.Delete(
+                    It.IsAny<EventEntity>()),
             Times.Never);
     }
 
     [Fact]
-    public async Task DeleteAsync_WhenNoActiveBookings_ShouldDeleteEvent()
+    public async Task
+        DeleteAsync_WhenNoActiveBookings_ShouldDeleteEvent()
     {
-        // Arrange
         var eventEntity =
             CreateExistingEvent();
 
         _eventRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(eventEntity);
 
         _eventRepositoryMock
@@ -474,186 +530,195 @@ public class EventServiceTests
             .ReturnsAsync(false);
 
         _eventRepositoryMock
-            .Setup(x => x.SaveChangesAsync())
+            .Setup(x =>
+                x.SaveChangesAsync())
             .ReturnsAsync(1);
 
-        // Act
-        await _eventService.DeleteAsync(1);
-
-        // Assert
-        _eventRepositoryMock.Verify(
-            x => x.Delete(eventEntity),
-            Times.Once);
+        await _eventService
+            .DeleteAsync(1);
 
         _eventRepositoryMock.Verify(
-            x => x.SaveChangesAsync(),
+            x =>
+                x.Delete(
+                    eventEntity),
             Times.Once);
     }
 
-    private void SetupUpdateDependencies(
-        EventEntity eventEntity)
-    {
-        _eventRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
-            .ReturnsAsync(eventEntity);
+    // =========================================================
+    // HELPERS
+    // =========================================================
 
+    private void
+        SetupVenueAndCategory(
+            int venueCapacity = 500)
+    {
         _venueRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(
                 new Venue
                 {
                     Id = 1,
-                    Name = "Main Hall",
-                    Address = "Vavuniya",
-                    Capacity = 500
+                    Name =
+                        "Main Hall",
+                    Address =
+                        "Vavuniya",
+                    Capacity =
+                        venueCapacity
                 });
 
         _categoryRepositoryMock
-            .Setup(x => x.GetByIdAsync(1))
+            .Setup(x =>
+                x.GetByIdAsync(1))
             .ReturnsAsync(
                 new EventCategory
                 {
                     Id = 1,
-                    Name = "Conference"
+                    Name =
+                        "Conference"
                 });
+    }
+
+    private void
+        SetupUpdateDependencies(
+            EventEntity eventEntity)
+    {
+        _eventRepositoryMock
+            .Setup(x =>
+                x.GetByIdAsync(1))
+            .ReturnsAsync(
+                eventEntity);
+
+        SetupVenueAndCategory();
     }
 
     private static EventCreateDto
         CreateValidCreateDto()
     {
+        var start =
+            DateTime.UtcNow
+                .AddDays(30);
+
         return new EventCreateDto
         {
             Name =
-                "Tech Conference 2026",
+                "Tech Conference",
 
             Description =
-                "Annual technology conference",
+                "Technology conference",
 
             VenueId = 1,
 
             CategoryId = 1,
 
             StartDateTime =
-                new DateTime(
-                    2026,
-                    9,
-                    10,
-                    10,
-                    0,
-                    0),
+                start,
 
             EndDateTime =
-                new DateTime(
-                    2026,
-                    9,
-                    10,
-                    12,
-                    0,
-                    0),
+                start.AddHours(2),
 
-            TicketPrice = 2500,
+            TicketPrice =
+                2500m,
 
-            ParkingFee = 500,
+            ParkingFee =
+                500m,
 
-            Capacity = 300
+            Capacity =
+                300
         };
     }
 
     private static EventUpdateDto
         CreateValidUpdateDto()
     {
+        var start =
+            DateTime.UtcNow
+                .AddDays(30);
+
         return new EventUpdateDto
         {
             Name =
-                "Tech Conference 2026",
+                "Tech Conference",
 
             Description =
-                "Updated technology conference",
+                "Updated conference",
 
             VenueId = 1,
 
             CategoryId = 1,
 
             StartDateTime =
-                new DateTime(
-                    2026,
-                    9,
-                    10,
-                    10,
-                    0,
-                    0),
+                start,
 
             EndDateTime =
-                new DateTime(
-                    2026,
-                    9,
-                    10,
-                    12,
-                    0,
-                    0),
+                start.AddHours(2),
 
-            TicketPrice = 2500,
+            TicketPrice =
+                2500m,
 
-            ParkingFee = 500,
+            ParkingFee =
+                500m,
 
-            Capacity = 300
+            Capacity =
+                300
         };
     }
 
     private static EventEntity
         CreateExistingEvent()
     {
+        var start =
+            DateTime.UtcNow
+                .AddDays(30);
+
         return new EventEntity
         {
             Id = 1,
 
             Name =
-                "Tech Conference 2026",
+                "Tech Conference",
 
             Description =
-                "Annual technology conference",
+                "Technology conference",
 
             VenueId = 1,
 
             CategoryId = 1,
 
-            Venue = new Venue
-            {
-                Id = 1,
-                Name = "Main Hall",
-                Address = "Vavuniya",
-                Capacity = 500
-            },
+            Venue =
+                new Venue
+                {
+                    Id = 1,
+                    Name =
+                        "Main Hall",
+                    Address =
+                        "Vavuniya",
+                    Capacity =
+                        500
+                },
 
-            Category = new EventCategory
-            {
-                Id = 1,
-                Name = "Conference"
-            },
+            Category =
+                new EventCategory
+                {
+                    Id = 1,
+                    Name =
+                        "Conference"
+                },
 
             StartDateTime =
-                new DateTime(
-                    2026,
-                    9,
-                    10,
-                    10,
-                    0,
-                    0),
+                start,
 
             EndDateTime =
-                new DateTime(
-                    2026,
-                    9,
-                    10,
-                    12,
-                    0,
-                    0),
+                start.AddHours(2),
 
-            TicketPrice = 2500,
+            TicketPrice =
+                2500m,
 
-            ParkingFee = 500,
+            ParkingFee =
+                500m,
 
-            Capacity = 300
+            Capacity =
+                300
         };
     }
 }

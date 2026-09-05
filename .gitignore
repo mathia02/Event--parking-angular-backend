@@ -1,4 +1,29 @@
+# Visual Studio
 .vs/
+*.user
+*.suo
+
+# Build outputs
 **/bin/
 **/obj/
-*.user
+
+# Test outputs
+TestResults/
+**/TestResults/
+*.trx
+
+# Coverage
+coverage/
+**/coverage/
+
+# IDE
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

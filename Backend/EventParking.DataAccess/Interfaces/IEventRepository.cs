@@ -10,7 +10,8 @@ public interface IEventRepository
         int? venueId,
         int? categoryId);
 
-    Task<Event?> GetByIdAsync(int id);
+    Task<Event?> GetByIdAsync(
+        int id);
 
     Task<bool> HasOverlapAsync(
         int venueId,
@@ -18,17 +19,31 @@ public interface IEventRepository
         DateTime endDateTime,
         int? excludeEventId = null);
 
-    Task<int> GetBookedSeatCountAsync(int eventId);
+    Task<int> GetBookedSeatCountAsync(
+        int eventId);
 
-    Task<bool> HasAnyBookingsAsync(int eventId);
+    // ---------------------------------------------------------
+    // TOTAL SEAT COUNT
+    // Used to keep Event Capacity and Seat Map consistent.
+    // ---------------------------------------------------------
 
-    Task<bool> HasActiveBookingsAsync(int eventId);
+    Task<int> GetSeatCountAsync(
+        int eventId);
 
-    Task AddAsync(Event eventEntity);
+    Task<bool> HasAnyBookingsAsync(
+        int eventId);
 
-    void Update(Event eventEntity);
+    Task<bool> HasActiveBookingsAsync(
+        int eventId);
 
-    void Delete(Event eventEntity);
+    Task AddAsync(
+        Event eventEntity);
+
+    void Update(
+        Event eventEntity);
+
+    void Delete(
+        Event eventEntity);
 
     Task<int> SaveChangesAsync();
 
